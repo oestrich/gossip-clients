@@ -461,8 +461,8 @@ class GossipSocket(WebSocket):
         # requirements, or comment/delete the below line.
         self.events = event.Queue(self, "gossip")
         
-        self.client_id = "21698b7b-6ed6-49d7-a9af-b15573656ea5"
-        self.client_secret = "fc68a099-c4c6-4a52-83a4-dc9336ca85bf"
+        self.client_id = "YOUR CLIENT ID HERE"
+        self.client_secret = "YOUR CLIENT SECRET HERE"
         self.supports = ["channels", "games", "players", "tells"]
 
         # Populate the channels attribute if you want to subscribe to a specific
