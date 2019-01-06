@@ -5,6 +5,9 @@
 # File Description: A module to allow connection to Gossip chat network.
 #                   Visit https://www.gossip.haus/
 #
+# Dependencies: You will need to 'pip3 install websocket-client' to use this module.
+#
+#
 # Implemented features:
 #       Auhentication to the Gossip network.
 #       Registration to the Gossip Channel(default) or other channels.
@@ -22,167 +25,23 @@
 # Example usage would be to import this module into your main game server.  When this module
 # is imported, gsocket is assigned to an instance of GossipSocket.  During instance initialization
 # is when the connection to Gossip.haus happens.  PLEASE PUT YOUR CLIENT ID AND CLIENT SECRET
-# into the appropriate instance attributes of GossipSocket below.
+# into the appropriate instance attributes of GossipSocket below.  Please note the instance
+# attribute in GossipSocket of debug, set to True if you would like to print to stdout various
+# things that happen to help with debugging.
 #
 # You will need to periodically call the gsocket.handle_read() and gsocket.handle_write() as
-# required by your configuration.   Please see the examples below of how this might look for you.
-#
-# The below two functions are being passed in the gossip.gsocket.
-#
-#@reoccuring_event
-#def event_gossip_send_message(event_):
-#    if len(event_.owner.outbound_frame_buffer) > 0:
-#        event_.owner.handle_write()
-#
-#@reoccuring_event
-#def event_gossip_player_query_status(event_):
-#    event_.owner.msg_gen_player_status_query()
-#
-#@reoccuring_event
-#def event_gossip_receive_message(event_):
-#    gossip_ = event_.owner
-#    gossip_.handle_read()
-#    if len(gossip_.inbound_frame_buffer) > 0:
-#        # Assign rcvd_msg to a GossipREceivedMessage instance.
-#        # The initialization of the object takes care of parsing the data
-#        # we received and setting appropritae values.
-#        rcvd_msg = gossip.GossipReceivedMessage(gossip_.read_in(), gossip_)
-#
-#        ret_value = rcvd_msg.parse_frame()
-#
-#        if ret_value:
-#            # We will receive a "tells/send" if there was an error telling a
-#            # foreign game player.
-#            if rcvd_msg.event == "tells/send":
-#                caller, target, game, error_msg = ret_value
-#                message = (f"\n\r{{GMultiMUD Tell to {{y{target}@{game}{{G "
-#                           f"returned an Error{{x: {{R{error_msg}{{x")
-#                for eachplayer in player.playerlist:
-#                    if eachplayer.name.capitalize() == caller:
-#                        if eachplayer.oocflags_stored['mmchat'] == 'true':
-#                            eachplayer.write(message)
-#                            return
-#
-#            if rcvd_msg.event == "tells/receive":
-#                sender, target, game, sent, message = ret_value
-#                message = (f"\n\r{{GMultiMUD Tell from {{y{sender}@{game}{{x: "
-#                           f"{{G{message}{{x.\n\rReceived at : {sent}.")
-#                for eachplayer in player.playerlist:
-#                    if eachplayer.name.capitalize() == target:
-#                        if eachplayer.oocflags_stored['mmchat'] == 'true':
-#                            eachplayer.write(message)
-#                            return
-#
-#            if rcvd_msg.event == "games/status":
-#                if ret_value:
-#                    # We've received a game status request response from
-#                    # gossip.  Do what you will here with the information,
-#                    # to do anything with it in Akrios.
-#                    pass
-#
-#            # Received Gossip Info that goes to all players goes here.
-#            message = ""
-#            if rcvd_msg.event == "games/connect":
-#                game = ret_value.capitalize()
-#                message = f"\n\r{{GMultiMUD Status Update: {game} connected to network{{x"
-#            if rcvd_msg.event == "games/disconnect":
-#                game = ret_value.capitalize()
-#                message = f"\n\r{{GMultiMUD Status Update: {game} disconnected from network{{x"
-#
-#            if rcvd_msg.event == "channels/broadcast":
-#                name, game, message = ret_value
-#                message = (f"\n\r{{GMultiMUD Chat{{x:{{y{name.capitalize()}"
-#                           f"@{game.capitalize()}{{x:{{G{message}{{x")
-#            if rcvd_msg.is_other_game_player_update():
-#                name, inout, game = ret_value
-#                message = (f"\n\r{{GMultiMUD Chat{{x: {{y{name.capitalize()}{{G "
-#                           f"has {inout} {{Y{game.capitalize()}{{x.")
-#
-#
-#            if message != "":
-#                for eachplayer in player.playerlist:
-#                    if eachplayer.oocflags_stored['mmchat'] == 'true':
-#                        eachplayer.write(message)
-#                return
-#
-#
-#        if hasattr(self, "event") and rcvd_msg.event == "restart":
-#            restart_time = rcvd_msg.restart_downtime * PULSE_PER_SECOND
-#            things_with_events["gossip"] = []
-#            gossip.gsocket.gsocket_disconnect()
-#
-#            nextevent = Event()
-#            nextevent.owner = gossip.gsocket
-#            nextevent.ownertype = "gossip"
-#            nextevent.eventtype = "gossip restart"
-#            nextevent.func = init_events_gossip(gossip.gsocket, restart=True)
-#            nextevent.passes = restart_time + 40
-#            nextevent.totalpasses = nextevent.passes
-#            gossip.gsocket.events.add(nextevent)
-#
-#
-#
-# An example player command to send a Chat message might look something like the below.
-#
-#@Command(capability="player")
-#def mmchat(caller, args):
-#    if caller.oocflags_stored['mmchat'] == 'false':
-#        caller.write("You have that command self disabled with the 'toggle' command.")
-#        return
-#
-#    if len(args.split()) == 0:
-#        caller.write("Did you have something to say or not?")
-#        return
-#
-#    try:
-#        gossip.gsocket.msg_gen_message_channel_send(caller, "gossip",  args) 
-#    except:
-#        caller.write(f"{{WError chatting to Gossip.haus Network, try again later{{x")
-#        comm.wiznet(f"Error writing to Gossip.haus network. {caller.name} : {args}")
-#        return
-#
-#   
-#    caller.write(f"{{GYou MultiMUD Chat{{x: '{{G{args}{{x'")
-#
-#    for eachplayer in player.playerlist:
-#        if eachplayer.oocflags_stored['mmchat'] == 'true' and eachplayer.aid != caller.aid:
-#            eachplayer.write(f"\n\r{{G{caller.name.capitalize()} MultiMUD Chats{{x: '{{G{args}{{x'")
-#
-#
-# An example of a player command to send a Tell message might look something like the below.
-#
-#
-#@Command(capability="player")
-#def mmtell(caller, args):
-#    if caller.oocflags_stored['mmchat'] == 'false':
-#        caller.write("You have that command self disabled with the 'toggle' command.")
-#        return
-#
-#    if len(args.split()) == 0:
-#        caller.write("Did you have something to say or not?")
-#        return
-#
-#    target = args.split()[0]
-#    target, game = target.split('@')
-#    message = args.split()[1:]
-#
-#    message = ' '.join(message)
-#
-#    for eachplayer in player.playerlist:
-#        if eachplayer.name.capitalize() == target.capitalize():
-#            caller.write("Just use in game channels to talk to players on Akrios.")
-#            return
-#
-#    gossip.gsocket.msg_gen_player_tells(caller.name.capitalize(), game, target, message)
-#
-#   
-#    caller.write(f"{{GYou MultiMUD tell {{y{target}@{game}{{x: '{{G{message}{{x'")
-#
+# required by your configuration.   Please see the examples in the repo of how this might look
+# for you.
 #
 # 
+#
+# Please see additional code examples of commands, events, etc in the repo.
+# https://github.com/oestrich/gossip-clients
+#
 # By: Jubelo, Creator of AkriosMUD
+# On: 1/6/19
 # At: akriosmud.funcity.org:4000
-#     akriosmud@gmail.com
+#     jubelo@akriosmud.funcity.org
 # 
 
 import json
@@ -191,10 +50,13 @@ import datetime
 import uuid
 from websocket import WebSocket
 
-
-import event
-import player
-
+# The below imports are for Akrios.  PLEASE LOOK BELOW FOR COMMENTS WITH XXX
+# in them to see how I tied in my side.  You can safetly ignore some of them
+# being commented, but others you will need to implement (like heartbeat player list).
+#import comm
+#import event
+#import player
+#import world
 
 class GossipReceivedMessage():
     def __init__(self, message, gsock):
@@ -325,17 +187,20 @@ class GossipReceivedMessage():
             if self.ref in sent_refs:
                 orig_req = sent_refs.pop(self.ref)
             game = self.payload["game"].capitalize()
-            players = [player.capitalize() for player in self.payload["players"]]
 
-            if game in self.gsock.other_games_players:
-                if len(players) <= 0:
-                    self.gsock.other_games_players[game] = []
-                for eachplayer in players:
-                    if eachplayer not in self.gsock.other_games_players[game]:
-                        if eachplayer != "":
-                            self.gsock.other_games_players[game].extend(eachplayer)
-            else:
-                self.gsock.other_games_players[game] = players
+            if len(self.payload["players"]) == 1 and self.payload["players"] == "":
+                self.gsock.other_games_players[game] = []
+                return
+            if len(self.payload["players"]) == 1:
+                player = self.payload["players"][0].capitalize()
+                self.gsock.other_games_players[game] = []
+                self.gsock.other_games_players[game].append(player)
+                return
+            if len(self.payload["players"]) > 1:
+                player = [player.capitalize() for player in self.payload["players"]]
+                self.gsock.other_games_players[game] = []
+                self.gsock.other_games_players[game] = player
+                return
 
     def received_tells_status(self, sent_refs):
         # One of the local players has sent a tell.  This is specific response of an error
@@ -412,13 +277,19 @@ class GossipReceivedMessage():
         # Also update our local cache of games/players.
         in_or_out = ""
         game = self.payload['game'].capitalize()
-        player = self.payload['name'].capitalize()
+        player = self.payload['name'][0].capitalize()
+        if self.gsock.debug:
+            print(f"Received other game player update: {player} @ {game}")
         if self.event == "players/sign-in":
             in_or_out = "signed into"
             self.gsock.other_games_players[game].append(player)
+            if self.gsock.debug:
+                print(f"In: {self.gsock.other_games_players}")
         elif self.event == "players/sign-out":
             in_or_out = "signed out of"
             self.gsock.other_games_players[game].remove(player)
+            if self.gsock.debug:
+                print(f"Out: {self.gsock.other_games_players}")
 
         return (player, in_or_out, game)
                 
@@ -450,10 +321,10 @@ class GossipReceivedMessage():
 
 
 class GossipSocket(WebSocket):
-    def __init__(self, restart=False):
+    def __init__(self):
         super().__init__(sockopt=((socket.IPPROTO_TCP, socket.TCP_NODELAY,1),))
         
-        self.debug = True
+        self.debug = False
 
         self.inbound_frame_buffer = []
         self.outbound_frame_buffer = []
@@ -461,15 +332,18 @@ class GossipSocket(WebSocket):
         # requirements, or comment/delete the below line.
         self.events = event.Queue(self, "gossip")
         
-        self.client_id = "YOUR CLIENT ID HERE"
-        self.client_secret = "YOUR CLIENT SECRET HERE"
+        # Replace the below with your specific information
+        # XXX
+        self.client_id = "YOUR-CLIENT-ID-HERE"
+        self.client_secret = "YOUR-CLIENT-SECRET-HERE"
         self.supports = ["channels", "games", "players", "tells"]
 
         # Populate the channels attribute if you want to subscribe to a specific
         # channel or channels during authentication.
         self.channels = []
-        self.version = "0.0.12"
-        self.user_agent = "AkriosMUD Gossip Client"
+        # Set your version and user_agent here. XXX
+        self.version = "0.0.14"
+        self.user_agent = "AkriosMUD v0.4.4"
 
         self.state = {"connected": False,
                       "authenticated": False}
@@ -482,8 +356,7 @@ class GossipSocket(WebSocket):
         
         # This event initialization is specific to AkriosMUD. This would be a good
         # spot to initialize in your event system if required.  Otherwise comment/delete this line.
-        if restart == False:
-            event.init_events_gossip(self)
+        event.init_events_gossip(self)
 
         self.sent_refs = {}
 
@@ -501,8 +374,15 @@ class GossipSocket(WebSocket):
         self.state["connected"] = True
         self.outbound_frame_buffer.append(self.msg_gen_authenticate())
 
+        # The below is a log specific to Akrios.  Leave commented or replace.
+        # XXX
+        #comm.log(world.serverlog, "Sending Auth to Gossip Network.")
+
     def gsocket_disconnect(self):
         self.state["connected"] = False
+        self.events.clear()
+        self.subscribed.clear()
+        self.other_games_players.clear()
         self.close()
 
     def send_out(self, frame):
@@ -543,8 +423,13 @@ class GossipSocket(WebSocket):
         # Once registered to Gossip we will receive regular heartbeats.  The
         # docs indicate to respond with the below heartbeat response which 
         # also provides an update player logged in list to the network.
-        player_list = [player.name.capitalize() for player in player.playerlist]
-        payload = {"players": player_list}
+
+        # The below line builds a list of player names logged into Akrios for sending
+        # in response to a gossip heartbeat.  Uncomment/replace with your functionality.
+        # XXX
+        #player_list = [player.name.capitalize() for player in player.playerlist]
+        #payload = {"players": player_list}
+        payload = {"players": "AkriosExample!"}
         msg = {"event": "heartbeat",
                "payload": payload}
 
