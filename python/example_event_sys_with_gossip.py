@@ -11,6 +11,7 @@ import time
 import uuid
 
 import comm
+import grapevine
 import player
 import server
 import world
