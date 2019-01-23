@@ -5,7 +5,7 @@
 # Capability: player
 #
 # Command Description: This is the Out of Character (OOC) chat command. It goes
-# to the Gossip MUD Chat Network.
+# to the Grapevine MUD Chat Network.
 #
 # By: Jubelo
 
@@ -14,29 +14,29 @@ from commands import *
 name = "mmchat"
 version = 1
 
-@Command(capability="player")
-def mmchat(caller, args):
+requirements = {'capability': 'player',
+                'generic_fail': "See {WHelp mmchat{x for help with this command.",
+                'truth_checks':  ['args_required'],
+                'false_checks': []}
+
+@Command(**requirements)
+def mmchat(caller, args, **kwargs):
     if caller.oocflags_stored['mmchat'] == 'false':
         caller.write("You have that command self disabled with the 'toggle' command.")
         return
 
-    if len(args.split()) == 0:
-        caller.write("Did you have something to say or not?")
-        return
-
     try:
-        # XXX Gossip specific here
-        gossip.gsocket.msg_gen_message_channel_send(caller, "gossip",  args) 
+        grapevine.gsocket.msg_gen_message_channel_send(caller, "grapevine",  args) 
     except:
-        caller.write(f"{{WError chatting to Gossip.haus Network, try again later{{x")
-        comm.wiznet(f"Error writing to Gossip.haus network. {caller.name} : {args}")
+        caller.write(f"{{WError chatting to grapevine.haus Network, try again later{{x")
+        comm.wiznet(f"Error writing to grapevine.haus network. {caller.name_cap} : {args}")
         return
-
     
     caller.write(f"{{GYou MultiMUD Chat{{x: '{{G{args}{{x'")
 
     for eachplayer in player.playerlist:
         if eachplayer.oocflags_stored['mmchat'] == 'true' and eachplayer.aid != caller.aid:
-            eachplayer.write(f"\n\r{{G{caller.name.capitalize()} MultiMUD Chats{{x: '{{G{args}{{x'")
+            eachplayer.write(f"\n\r{{G{caller.name_cap} MultiMUD Chats{{x: '{{G{args}{{x'")
+
 
 
