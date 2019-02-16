@@ -23,8 +23,8 @@
 #
 #
 # Example usage would be to import this module into your main game server.  During server startup
-# create grapevine.gsocket = grapevine.GrapevineSocket().  During instance init
-# is when the connection to grapevine.haus happens.  PLEASE PUT YOUR CLIENT ID AND CLIENT SECRET
+# assign grapevine.gsocket to grapevine.GrapevineSocket().  After instance init is when you need
+# to connect via grapevine.gsocket.gsocket_connect().  PLEASE PUT YOUR CLIENT ID AND CLIENT SECRET
 # into the appropriate instance attributes of GrapevineSocket below.  Please note the instance
 # attribute in GrapevineSocket of debug, set to True if you would like to print to stdout various
 # things that happen to help with debugging.
@@ -33,18 +33,6 @@
 # required by your configuration.   Please see the examples in the repo of how this might look
 # for you.
 #
-# The below two functions are being passed in the grapevine.gsocket as a variable named event_.
-#
-#@reoccuring_event
-#def event_grapevine_send_message(event_):
-#    if len(event_.owner.outbound_frame_buffer) > 0:
-#        event_.owner.handle_write()
-#
-#@reoccuring_event
-#def event_grapevine_player_query_status(event_):
-#    event_.owner.msg_gen_player_status_query()
-#
-# 
 #
 # Please see additional code examples of commands, events, etc in the repo.
 # https://github.com/oestrich/gossip-clients
@@ -71,15 +59,13 @@
         GrapevineSocket is used to authentcate to and send messages to the grapevine network.
         __init__(self)
 
-    Module Variables of Note:
-        gsocket is an instance of GrapevineSocket, when this module is imported the authentication
-        portion is completed and working with grapevine is done through the gsocket.
 '''
 
 
+import datetime
 import json
 import socket
-import datetime
+import time
 import uuid
 from websocket import WebSocket
 
@@ -88,12 +74,13 @@ from websocket import WebSocket
 # being commented, but others you will need to implement (like heartbeat player list).
 #import comm
 #import event
-#from keys import CLIENT_ID, SECRET_KEY
+from keys import CLIENT_ID, SECRET_KEY
 #import player
 #import world
 
-class GrapevineReceivedMessage():
+class GrapevineReceivedMessage(object):
     def __init__(self, message, gsock):
+        super().__init__()
         # Short hand to convert JSON data to instance attributes.
         # Not secure at all.  If you're worreid about it feel free to modify
         # to your needs.
@@ -105,10 +92,10 @@ class GrapevineReceivedMessage():
         # cache in the gsocket up to date.
         self.gsock = gsock
         
-        # When we receive a websocket it will always have an event type.
+        # When we receive a JSON message from grapevine it will always have an event type.
         self.rcvr_func = {"heartbeat": (self.gsock.msg_gen_heartbeat, None),
-                          "authenticate": (self.is_received_auth, None),
-                          "restart": (self.is_received_restart, None),
+                          "authenticate": (self.received_auth, None),
+                          "restart": (self.received_restart, None),
                           "channels/broadcast": (self.received_broadcast_message, None),
                           "channels/subscribe": (self.received_chan_sub, gsock.sent_refs),
                           "channels/unsubscribe": (self.received_chan_unsub, gsock.sent_refs),
@@ -156,7 +143,7 @@ class GrapevineReceivedMessage():
             else:
                 return False
 
-    def is_received_auth(self):
+    def received_auth(self):
         '''
             We received an event Auth event type.
             Determine if we are already authenticated, if so subscribe to the channels
@@ -168,12 +155,22 @@ class GrapevineReceivedMessage():
         '''
         if self.is_event_status("success"):
             self.gsock.state["authenticated"] = True
+            self.gsock.state["connected"] = True
             self.gsock.msg_gen_chan_subscribe()
+            # The below line is Akrios Specific.
+            # XXX
+            #comm.wiznet("Received authentication success from Grapevine.")
             self.gsock.msg_gen_player_status_query()
+            # The below line is Akrios specific.
+            # XXX
+            #comm.wiznet("Sending player status query to all Grapevine games.")
         elif self.gsock.state["authenticated"] == False:
+            # The below line is Akrios specific.
+            # XXX
+            #comm.wiznet("received_auth: Sending Authentication message to Grapevine.")
             self.gsock.msg_gen_authenticate()
         
-    def is_received_restart(self):
+    def received_restart(self):
         '''
         We received a restart event. We'll asign the value to the restart_downtime
         attribute for access by the calling code.
@@ -256,7 +253,6 @@ class GrapevineReceivedMessage():
             if self.ref in sent_refs and self.is_event_status("success"):
                 orig_req = sent_refs.pop(self.ref)
                 return
-            # We are a player login notification from Grapevine.
             if "game" in self.payload:
                 game = self.payload["game"].capitalize()
                 player = self.payload["name"].capitalize()
@@ -283,7 +279,7 @@ class GrapevineReceivedMessage():
                 orig_req = sent_refs.pop(self.ref)
             game = self.payload["game"].capitalize()
 
-            if len(self.payload["players"]) == 1 and self.payload["players"] == "":
+            if len(self.payload["players"]) == 1 and self.payload["players"] in ["", None]:
                 self.gsock.other_games_players[game] = []
                 return
             if len(self.payload["players"]) == 1:
@@ -352,9 +348,7 @@ class GrapevineReceivedMessage():
             orig_req = sent_refs.pop(self.ref)
             if self.ref in sent_refs:
                 game = orig_req["payload"]["game"]
-                error_code = self.error
-                return (game, error_code)
-
+                return (game, self.error)
 
     def received_message_confirm(self, sent_refs):
         '''
@@ -419,6 +413,7 @@ class GrapevineSocket(WebSocket):
         self.outbound_frame_buffer = []
         # This event attribute is specific to AkriosMUD.  Replace with your event
         # requirements, or comment/delete the below line.
+        # XXX
         #self.events = event.Queue(self, "grapevine")
         
         # Replace the below with your specific information
@@ -431,7 +426,7 @@ class GrapevineSocket(WebSocket):
         # channel or channels during authentication.
         self.channels = []
         self.version = "0.1.9"
-        self.user_agent = "AkriosMUD v0.4.5"
+        self.user_agent = "AkriosMUD v0.4.4"
 
         self.state = {"connected": False,
                       "authenticated": False}
@@ -441,7 +436,9 @@ class GrapevineSocket(WebSocket):
             self.subscribed[each_channel] = False        
 
         # This event initialization is specific to AkriosMUD. This would be a good
-        # spot to initialize in your event system if required.  Otherwise comment/delete this line.
+        # spot to initialize in your event system if required.  
+        # Otherwise comment/delete this line.
+        # XXX
         #event.init_events_grapevine(self)
 
         self.sent_refs = {}
@@ -451,25 +448,34 @@ class GrapevineSocket(WebSocket):
         # to also show players logged into other Grapevine connected games.
         self.other_games_players = {}
 
+        # The below is to track the last time we received a heartbeat from Grapevine.
+        self.last_heartbeat = 0
 
     def gsocket_connect(self):
         try:
             result = self.connect("wss://grapevine.haus/socket")
+            # The below log is specific to Akrios. Leave commented or replace.
+            #comm.wiznet("gsocket_connect: Attempting connection to Grapevine.")
         except:
             return False
         # We need to set the below on the socket as websockets.WebSocket is 
         # blocking by default.  :(
         self.sock.setblocking(0)
-        self.state["connected"] = True
-        self.outbound_frame_buffer.append(self.msg_gen_authenticate())
+        self.msg_gen_authenticate()
 
         # The below is a log specific to Akrios.  Leave commented or replace.
         # XXX
-        #comm.log(world.serverlog, "Sending Auth to Grapevine Network.")
+        #comm.wiznet("gsocket_connect: Sending Auth to Grapevine Network.")
         return True
 
     def gsocket_disconnect(self):
+        # The below is a log specific to Akrios.  Leave commented or replace.
+        # XXX
+        #comm.wiznet("gsocket_disconnect: Disconnecting from Grapevine Network.")
         self.state["connected"] = False
+        self.state["authenticated"] = False
+        self.inbound_frame_buffer.clear()
+        self.outbound_frame_buffer.clear()
         self.events.clear()
         self.subscribed.clear()
         self.other_games_players.clear()
@@ -521,9 +527,12 @@ class GrapevineSocket(WebSocket):
         also provides an update player logged in list to the network.
         '''
         # The below line builds a list of player names logged into Akrios for sending
-        # in response to a grapevine heartbeat.  Uncomment/replace with your functionality.
-        # XXX
-        #player_list = [player.name.capitalize() for player in player.playerlist]
+        # in response to a grapevine heartbeat.  Replace with your functionality!
+        # XXX XXX XXX
+        player_list = [player.name.capitalize() for player in player.playerlist]
+
+        self.last_heartbeat = time.time()
+
         payload = {"players": player_list}
         msg = {"event": "heartbeat",
                "payload": payload}
@@ -620,7 +629,7 @@ class GrapevineSocket(WebSocket):
 
     def msg_gen_game_all_status_query(self):
         '''
-        Request for each game to send full status update.  You will receive in
+        Request for all games to send full status update.  You will receive in
         return from each game quite a bit of detailed information.  See the
         grapevine.haus Documentation or review the receiver code above.
         '''
