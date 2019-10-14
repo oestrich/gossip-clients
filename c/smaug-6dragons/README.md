@@ -2,8 +2,10 @@ For 6dragons & smaug
 
 You will need the libwsclient library located below, along with curl and jansson
 
+```bash
 sudo apt-get update
 sudo apt-get install curl libcurl4-openssl-dev libtool libjansson-dev build-essential pkg-config libssl-dev
+```
 
 In your home directory, clone the wsclient
 
@@ -12,8 +14,10 @@ sudo git clone https://github.com/payden/libwsclient.git
 cd libwsclient
 
 Now install the library
+```bash
 sudo ./autogen.sh
 sudo ./configure && make && make install
+```
 
 drop in gossip.c into your src directory
 Change at the top your CLIENT_ID and CLIENT_SECRET to what is shown on your mud on grapevine.haus
